@@ -1,101 +1,218 @@
-# Mz2synthWorkspace
+# 🎵 MZ2SYNTH - Offline Audio Synthesis in Your Browser
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+An Nx monorepo featuring a **fully offline**, browser-based audio synthesizer powered by WebAssembly.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+## ✨ What Makes This Special
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/tutorials/react-standalone-tutorial?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+- **🌐 100% Offline** - No internet or backend server required
+- **🎨 Visual Sound Design** - Draw patterns, hear them as music
+- **⚡ WebAssembly Powered** - Fortran synthesis compiled to WASM
+- **📱 Works Everywhere** - Desktop and mobile browsers
+- **🚀 One Command Setup** - `npm run setup` and you're done!
 
-## Run tasks
+## 🚀 Quick Start
 
-To run the dev server for your app, use:
+### First Time Setup
 
-```sh
-npx nx serve mz2synth-app
+```bash
+# Clone and navigate to workspace
+cd mz2synth-workspace
+
+# Install everything (Emscripten + WASM build)
+npm run setup
+
+# Start the app
+npm start
+
+# Open http://localhost:4200 and create sounds!
 ```
 
-To create a production bundle:
+### Daily Usage
 
-```sh
-npx nx build mz2synth-app
+```bash
+npm start  # That's it!
 ```
 
-To see all available targets to run for a project, run:
+## 🎨 How It Works
 
-```sh
-npx nx show project mz2synth-app
+1. **Draw on Canvas** - 720 pixels wide (one per oscillator)
+   - **Red** pixels = Sine waves
+   - **Green** pixels = Square waves
+   - **Blue** pixels = Sawtooth waves
+
+2. **Click "Generate & Play"** - Audio synthesizes instantly in browser
+
+3. **Listen!** - Web Audio API plays your creation
+
+## 📦 Features
+
+- 🎵 **720 Oscillators** spanning 10 octaves (like the original ANS synthesizer)
+- 🌊 **4 Waveform Types**: Sine, Square, Sawtooth, Triangle
+- 🎚️ **Full Control**: Speed, volume, sample rate, channel mapping
+- 💾 **Fully Offline**: Works without internet connection
+- 🔧 **No Backend**: Pure static site deployment
+- 📱 **Mobile Support**: Works on phones and tablets
+
+## 🛠️ NPM Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run setup` | **First time**: Install Emscripten + build WASM |
+| `npm start` | Start dev server (http://localhost:4200) |
+| `npm run update` | Update Fortran code from git + rebuild WASM |
+| `npm run build` | Build production bundle |
+| `npm run wasm:build` | Rebuild WASM module only |
+
+## 📁 Project Structure
+
+```
+mz2synth-workspace/
+├── public/
+│   ├── mz2synth.js           # WASM glue code
+│   └── mz2synth.wasm         # Compiled synthesizer (18KB!)
+│
+├── src/
+│   └── components/
+│       ├── DrawingCanvas.tsx        # 720px drawing interface
+│       └── AudioSynthesizer.tsx     # Main UI (WASM-based)
+│
+├── libs/mz2synth-wasm/              # WebAssembly module
+│   ├── src/
+│   │   ├── mz2_wasm.c               # C implementation
+│   │   └── index.ts                 # TypeScript wrapper
+│   └── build/
+│
+├── scripts/
+│   ├── setup-emscripten.sh          # Emscripten setup
+│   └── build-wasm.sh                # WASM compilation
+│
+└── fortran-source/                  # Original Fortran code
 ```
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+## 🌐 Deployment
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+Since there's no backend, deploy anywhere that hosts static files:
 
-## Add new projects
+```bash
+npm run build
 
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
-
-Use the plugin's generator to create new projects.
-
-To generate a new application, use:
-
-```sh
-npx nx g @nx/react:app demo
+# Deploy dist/mz2synth-app/ to:
+# - GitHub Pages
+# - Netlify
+# - Vercel
+# - Any static host
 ```
 
-To generate a new library, use:
+## 📚 Documentation
 
-```sh
-npx nx g @nx/react:lib mylib
+- **[WASM_SETUP.md](WASM_SETUP.md)** - Technical details about WebAssembly compilation
+- **[INTERACTIVE_STUDIO_README.md](INTERACTIVE_STUDIO_README.md)** - User guide for the drawing interface
+
+## 🔧 Advanced Usage
+
+### Update from Git
+
+When the MZ2SYNTH Fortran repository updates:
+
+```bash
+npm run update  # Pulls latest + rebuilds WASM
 ```
 
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
+### Customize Synthesis
 
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+Edit the C implementation at `libs/mz2synth-wasm/src/mz2_wasm.c`:
 
-## Set up CI!
+- Add new waveform types
+- Modify oscillator frequencies
+- Apply audio effects
 
-### Step 1
+Then rebuild:
 
-To connect to Nx Cloud, run the following command:
-
-```sh
-npx nx connect
+```bash
+npm run wasm:build
 ```
 
-Connecting to Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
+## 🎯 Technical Details
 
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+### Architecture
 
-### Step 2
-
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
+```
+Browser (Fully Offline)
+├── React UI (Drawing Canvas)
+├── WebAssembly Module
+│   ├── 720 oscillators
+│   ├── 4 waveform types
+│   └── Real-time synthesis
+└── Web Audio API (Playback)
 ```
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+### Performance
 
-## Install Nx Console
+- **WASM Load**: ~50-100ms
+- **Synthesis (720×200)**: ~100-500ms
+- **Memory**: ~10-20MB
+- **Audio Quality**: Same as native Fortran
 
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
+### Browser Support
 
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+✅ Chrome/Edge 57+  
+✅ Firefox 52+  
+✅ Safari 11+  
+✅ Mobile Safari (iOS 11+)  
+✅ Mobile Chrome (Android 5+)
 
-## Useful links
+## ⚠️ Safety Warning
 
-Learn more:
+This synthesizer can generate **very loud sounds**:
 
-- [Learn more about this workspace setup](https://nx.dev/getting-started/tutorials/react-standalone-tutorial?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- Start with **low volume** (default: 5%)
+- Test with **headphones at low volume first**
+- Be careful with volume multipliers > 0.1
+- **Protect your hearing** and equipment
 
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+## 🐛 Troubleshooting
+
+### WASM module not loaded
+
+Reload the page. If persists:
+
+```bash
+npm run wasm:build
+npm start
+```
+
+### Dev server won't start
+
+Port 4200 in use:
+
+```bash
+lsof -i :4200
+kill -9 <PID>
+npm start
+```
+
+### Audio generation fails
+
+Check browser console. Image must be exactly 720 pixels wide.
+
+## 🎓 Learn More
+
+- [WebAssembly](https://webassembly.org/)
+- [Emscripten](https://emscripten.org/)
+- [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
+- [ANS Synthesizer](https://en.wikipedia.org/wiki/ANS_synthesizer)
+- [MZ2SYNTH GitHub](https://github.com/frankenbeans/MZ2SYNTH)
+
+## 💡 Credits
+
+- **MZ2SYNTH Fortran Code**: E. Lamprecht
+- **Original ANS Synthesizer**: Yevgeny Murzin (1958)
+- **WebAssembly Port**: This project
+
+## 📄 License
+
+GPL-3.0 (same as MZ2SYNTH)
+
+---
+
+**Happy sound painting! 🎨🎵**

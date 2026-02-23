@@ -1,23 +1,31 @@
-# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
-
-# compiled output
-dist
-tmp
-out-tsc
-
 # dependencies
-node_modules
+node_modules/
 
-# IDEs and editors
-/.idea
+# build output
+dist/
+tmp/
+out-tsc/
+coverage/
+
+# nx / tool caches
+.nx/cache/
+.nx/workspace-data/
+vite.config.*.timestamp*
+vitest.config.*.timestamp*
+
+# logs
+npm-debug.log*
+yarn-error.log*
+testem.log
+
+# editors
+/.idea/
 .project
 .classpath
 .c9/
 *.launch
 .settings/
 *.sublime-workspace
-
-# IDE - VSCode
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
@@ -25,21 +33,24 @@ node_modules
 !.vscode/extensions.json
 
 # misc
-/.sass-cache
+/.sass-cache/
 /connect.lock
-/coverage
 /libpeerconnection.log
-npm-debug.log
-yarn-error.log
-testem.log
-/typings
+/typings/
+temp/
 
-# System Files
+# system files
 .DS_Store
 Thumbs.db
 
-.nx/cache
-.nx/workspace-data
+# external repo (cloned by scripts/update-fortran-repo.sh)
+fortran-source/
 
-vite.config.*.timestamp*
-vitest.config.*.timestamp*
+# wasm / fortran generated artifacts
+*.o
+*.mod
+libs/mz2synth-wasm/build/
+libs/mz2synth-wasm/public/mz2synth.js
+libs/mz2synth-wasm/public/mz2synth.wasm
+public/mz2synth.js
+public/mz2synth.wasm

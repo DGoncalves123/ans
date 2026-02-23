@@ -6,7 +6,13 @@
   "scripts": {
     "start": "nx serve",
     "build": "nx build",
-    "test": "nx test"
+    "test": "nx test",
+    "wasm:setup": "./scripts/setup-emscripten.sh",
+    "wasm:build": "./scripts/build-wasm.sh",
+    "wasm:update": "npm run fortran:update && npm run wasm:build",
+    "setup": "npm run wasm:setup && npm run wasm:update",
+    "update": "npm run wasm:update",
+    "fortran:update": "./scripts/update-fortran-repo.sh"
   },
   "nx": {
     "includedScripts": []
@@ -38,6 +44,7 @@
     "@vitejs/plugin-react": "^4.2.0",
     "@vitest/coverage-v8": "^4.0.0",
     "@vitest/ui": "^4.0.0",
+    "concurrently": "^9.2.1",
     "eslint": "^9.8.0",
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-import": "2.31.0",

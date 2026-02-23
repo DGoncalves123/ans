@@ -13,14 +13,14 @@ describe('App', () => {
     expect(baseElement).toBeTruthy();
   });
 
-  it('should have a greeting as the title', () => {
-    const { getAllByText } = render(
+  it('should show the studio title', () => {
+    const { getByRole } = render(
       <BrowserRouter>
         <App />
       </BrowserRouter>,
     );
     expect(
-      getAllByText(new RegExp('Welcome mz2synth-app', 'gi')).length > 0,
+      getByRole('heading', { name: /MZ2SYNTH Interactive Studio/i }),
     ).toBeTruthy();
   });
 });
