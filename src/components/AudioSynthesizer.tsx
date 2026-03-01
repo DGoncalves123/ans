@@ -327,17 +327,9 @@ export function AudioSynthesizer() {
 
   return (
     <div className="audio-synthesizer">
-      <h1>
-        <span role="img" aria-label="Music">🎵</span> MZ2SYNTH Interactive Studio
-      </h1>
-      <p className="description">
-        Draw patterns to create sound. Each vertical position (top to bottom) is a frequency from the 720 oscillators.
-        Each horizontal position (left to right) represents a moment in time.
-      </p>
 
       <div className="synthesizer-layout">
         <div className="drawing-section">
-          <h2>Draw Your Sound</h2>
           <DrawingCanvas
             width={canvasWidth}
             height={canvasHeight}
@@ -536,18 +528,6 @@ export function AudioSynthesizer() {
           Based on the ANS synthesizer by Yevgeny Murzin (1958), featuring 720 oscillators 
           spanning 10 octaves with multiple waveform types.
         </p>
-        <p>
-          <strong><span role="img" aria-label="Sparkles">✨</span> Offline-capable:</strong> Audio synthesis runs entirely in your browser 
-          using WebAssembly. No internet connection required!
-        </p>
-        <p>
-          <strong><span role="img" aria-label="Thread">🧵</span> Multi-threaded:</strong> Synthesis runs in a background Web Worker thread,
-          keeping the UI responsive even during heavy audio generation.
-        </p>
-        <div className="warning-box">
-          <span role="img" aria-label="Warning">⚠️</span> 
-          Start with low volume! This can generate very loud sounds.
-        </div>
       </div>
     </div>
   );

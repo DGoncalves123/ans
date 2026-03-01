@@ -21,9 +21,7 @@ export default defineConfig(() => ({
   //   plugins: () => [ nxViteTsPaths() ],
   // },
   build: {
-    outDir: './dist/mz2synth-app',
-    emptyOutDir: true,
-    reportCompressedSize: true,
+    outDir: './',
     commonjsOptions: {
       transformMixedEsModules: true,
     },
