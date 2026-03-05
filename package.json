@@ -6,6 +6,7 @@
   "scripts": {
     "start": "nx serve",
     "build": "nx build",
+    "build:ghpages": "VITE_BASE_PATH=/ans_html/ nx build",
     "test": "nx test",
     "wasm:setup": "./scripts/setup-emscripten.sh",
     "wasm:build": "./scripts/build-wasm.sh",
@@ -18,6 +19,8 @@
     "includedScripts": []
   },
   "dependencies": {
+    "art": "^0.10.3",
+    "artjs": "^0.4.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "6.30.3"

@@ -22,6 +22,96 @@ interface GeneratedTrack {
   isGenerating: boolean;
 }
 
+type WaveChannel = 'R' | 'G' | 'B' | 'L' | 'M';
+type XResizeMode = 'average' | 'stretch';
+
+interface WaveChannelMap {
+  sine: WaveChannel;
+  square: WaveChannel;
+  sawtooth: WaveChannel;
+  triangle: WaveChannel;
+}
+
+const DRAWING_CANVAS_WIDTH = 720;
+const DRAWING_CANVAS_HEIGHT = 720;
+
+const CHANNEL_OPTIONS: Array<{ value: WaveChannel; label: string; swatch: string }> = [
+  { value: 'R', label: 'Red', swatch: '#ff3b30' },
+  { value: 'G', label: 'Green', swatch: '#34c759' },
+  { value: 'B', label: 'Blue', swatch: '#007aff' },
+  { value: 'L', label: 'Luma', swatch: '#c7c7cc' },
+  { value: 'M', label: 'Mute', swatch: '#1f2937' },
+];
+
+function buildChannelString(map: WaveChannelMap): string {
+  return `${map.sine}${map.square}${map.sawtooth}${map.triangle}`;
+}
+
+function resizeImageDataX(source: ImageData, targetWidth: number, mode: XResizeMode): ImageData {
+  if (source.width === targetWidth) {
+    return source;
+  }
+
+  const out = new Uint8ClampedArray(targetWidth * source.height * 4);
+  const src = source.data;
+  const srcW = source.width;
+  const srcH = source.height;
+
+  for (let y = 0; y < srcH; y += 1) {
+    for (let tx = 0; tx < targetWidth; tx += 1) {
+      const outBase = (y * targetWidth + tx) * 4;
+
+      if (mode === 'stretch') {
+        const sx = Math.min(srcW - 1, Math.floor((tx + 0.5) * srcW / targetWidth));
+        const srcBase = (y * srcW + sx) * 4;
+        out[outBase] = src[srcBase];
+        out[outBase + 1] = src[srcBase + 1];
+        out[outBase + 2] = src[srcBase + 2];
+        out[outBase + 3] = 255;
+        continue;
+      }
+
+      const start = tx * srcW / targetWidth;
+      const end = (tx + 1) * srcW / targetWidth;
+      const first = Math.floor(start);
+      const last = Math.min(srcW - 1, Math.ceil(end) - 1);
+
+      let sumR = 0;
+      let sumG = 0;
+      let sumB = 0;
+      let total = 0;
+
+      for (let sx = first; sx <= last; sx += 1) {
+        const left = Math.max(sx, start);
+        const right = Math.min(sx + 1, end);
+        const weight = Math.max(0, right - left);
+        if (weight === 0) continue;
+
+        const srcBase = (y * srcW + sx) * 4;
+        sumR += src[srcBase] * weight;
+        sumG += src[srcBase + 1] * weight;
+        sumB += src[srcBase + 2] * weight;
+        total += weight;
+      }
+
+      if (total <= 0) {
+        const sx = Math.min(srcW - 1, Math.floor((tx + 0.5) * srcW / targetWidth));
+        const srcBase = (y * srcW + sx) * 4;
+        out[outBase] = src[srcBase];
+        out[outBase + 1] = src[srcBase + 1];
+        out[outBase + 2] = src[srcBase + 2];
+      } else {
+        out[outBase] = Math.round(sumR / total);
+        out[outBase + 1] = Math.round(sumG / total);
+        out[outBase + 2] = Math.round(sumB / total);
+      }
+      out[outBase + 3] = 255;
+    }
+  }
+
+  return new ImageData(out, targetWidth, srcH);
+}
+
 export function AudioSynthesizer() {
   const [config, setConfig] = useState<SynthConfig>({
     advanceRate: 12,
@@ -35,27 +125,37 @@ export function AudioSynthesizer() {
   const [workerState, setWorkerState] = useState<WorkerState>('initializing');
   const [status, setStatus] = useState<string>('🧵 Initializing worker thread...');
   const [generatedTracks, setGeneratedTracks] = useState<GeneratedTrack[]>([]);
-  const [canvasWidth, setCanvasWidth] = useState<number>(720);
+  const [targetTimeWidth, setTargetTimeWidth] = useState<number>(720);
+  const [xResizeMode, setXResizeMode] = useState<XResizeMode>('average');
+  const [waveChannelMap, setWaveChannelMap] = useState<WaveChannelMap>({
+    sine: 'R',
+    square: 'G',
+    sawtooth: 'B',
+    triangle: 'L',
+  });
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const playingSourcesRef = useRef<Map<string, AudioBufferSourceNode>>(new Map());
 
-  const canvasHeight = 720; // 720 oscillators (fixed)
+  const canvasHeight = DRAWING_CANVAS_HEIGHT;
 
-
+  useEffect(() => {
+    setConfig((prev) => ({ ...prev, channels: buildChannelString(waveChannelMap) }));
+  }, [waveChannelMap]);
 
   // Calculate estimated duration based on canvas width and playback speed
   // Width represents time (horizontal left to right)
   // Note: This is an estimate - actual duration may vary based on WASM processing
-  const estimatedDuration = canvasWidth / config.advanceRate;
+  const estimatedDuration = targetTimeWidth / config.advanceRate;
 
   // Initialize Web Worker for threaded synthesis
   useEffect(() => {
     const init = async () => {
       try {
         // Create Web Worker for audio synthesis
-        const worker = new Worker('/synth-worker.js');
+        const workerUrl = `${import.meta.env.BASE_URL}synth-worker.js`;
+        const worker = new Worker(workerUrl);
         workerRef.current = worker;
 
         // Set up worker message handler
@@ -260,12 +360,17 @@ export function AudioSynthesizer() {
     }
 
     // Create placeholder track immediately
+    const synthConfig: SynthConfig = {
+      ...config,
+      channels: buildChannelString(waveChannelMap),
+    };
+
     const placeholderTrack: GeneratedTrack = {
       id: `track_${Date.now()}`,
       audioBuffer: null,
       duration: 0,
       timestamp: new Date(),
-      sampleRate: config.samplingRate,
+      sampleRate: synthConfig.samplingRate,
       isPlaying: false,
       isGenerating: true,
     };
@@ -285,8 +390,9 @@ export function AudioSynthesizer() {
       // NOTE: Canvas is [width(time) x height(720 oscillators)]
       // But WASM expects [width(720 oscillators) x height(time)]
       // So we need to TRANSPOSE the image data
-      const canvasW = imageData.width;  // time dimension
-      const canvasH = imageData.height; // 720 oscillators
+      const resizedImageData = resizeImageDataX(imageData, targetTimeWidth, xResizeMode);
+      const canvasW = resizedImageData.width;
+      const canvasH = resizedImageData.height;
       
       // Transposed dimensions for WASM
       const wasmWidth = canvasH;   // 720 oscillators
@@ -302,9 +408,9 @@ export function AudioSynthesizer() {
           const wasmY = canvasX;  // canvas X becomes WASM Y (time)
           const wasmIdx = wasmY * wasmWidth + wasmX;
           
-          rgbData[wasmIdx * 3] = imageData.data[canvasIdx * 4];       // R
-          rgbData[wasmIdx * 3 + 1] = imageData.data[canvasIdx * 4 + 1]; // G
-          rgbData[wasmIdx * 3 + 2] = imageData.data[canvasIdx * 4 + 2]; // B
+          rgbData[wasmIdx * 3] = resizedImageData.data[canvasIdx * 4];
+          rgbData[wasmIdx * 3 + 1] = resizedImageData.data[canvasIdx * 4 + 1];
+          rgbData[wasmIdx * 3 + 2] = resizedImageData.data[canvasIdx * 4 + 2];
         }
       }
 
@@ -314,7 +420,7 @@ export function AudioSynthesizer() {
         imageData: rgbData.buffer,
         width: wasmWidth,   // 720 oscillators
         height: wasmHeight, // time points
-        config
+        config: synthConfig
       }, [rgbData.buffer]);
 
     } catch (error) {
@@ -331,10 +437,14 @@ export function AudioSynthesizer() {
       <div className="synthesizer-layout">
         <div className="drawing-section">
           <DrawingCanvas
-            width={canvasWidth}
+            width={DRAWING_CANVAS_WIDTH}
             height={canvasHeight}
             onImageChange={setImageData}
           />
+          <p className="canvas-size-note">
+            Canvas always fits your screen. Actual drawing size: {DRAWING_CANVAS_WIDTH} x {canvasHeight}px.
+            Synthesis uses width {targetTimeWidth}px via {xResizeMode} conversion on the X axis.
+          </p>
           <div className="drawing-hints">
             <h3><span role="img" aria-label="Light bulb">💡</span> Tips:</h3>
             <ul>
@@ -367,17 +477,31 @@ export function AudioSynthesizer() {
 
           <div className="control-group">
             <label>
-              Canvas Width (pixels):
+              Synthesis Width (time axis):
               <input
-                type="number"
-                min="100"
+                type="range"
+                min="70"
                 max="2000"
-                step="50"
-                value={canvasWidth}
-                onChange={(e) => setCanvasWidth(Number(e.target.value))}
+                step="1"
+                value={targetTimeWidth}
+                onChange={(e) => setTargetTimeWidth(Number(e.target.value))}
               />
             </label>
-            <small>Duration control (more width = longer audio, max 2000)</small>
+            <small>{targetTimeWidth}px (range: 70 to 2000)</small>
+          </div>
+
+          <div className="control-group">
+            <label>
+              X Resize Method:
+              <select
+                value={xResizeMode}
+                onChange={(e) => setXResizeMode(e.target.value as XResizeMode)}
+              >
+                <option value="average">Average (smoother downscale)</option>
+                <option value="stretch">Stretch (nearest mapping)</option>
+              </select>
+            </label>
+            <small>Converts responsive drawing width into synthesis width.</small>
           </div>
 
           <div className="control-group">
@@ -410,22 +534,69 @@ export function AudioSynthesizer() {
           </div>
 
           <div className="control-group">
-            <label>
-              Channel Map:
-              <input
-                type="text"
-                maxLength={4}
-                value={config.channels}
-                onChange={(e) => {
-                  const value = e.target.value.toUpperCase();
-                  if (/^[RGBLM]{0,4}$/.test(value)) {
-                    setConfig({ ...config, channels: value });
-                  }
-                }}
-                placeholder="RGBL"
-              />
-            </label>
-            <small>Sine:Square:Saw:Triangle (R/G/B/L/M)</small>
+            <label>Wave Channel Mapper:</label>
+            <div className="wave-mapper-grid">
+              <div className="wave-mapper-row">
+                <span className="wave-name">Sine</span>
+                <select
+                  value={waveChannelMap.sine}
+                  onChange={(e) => setWaveChannelMap((prev) => ({ ...prev, sine: e.target.value as WaveChannel }))}
+                >
+                  {CHANNEL_OPTIONS.map((option) => (
+                    <option key={`sine_${option.value}`} value={option.value}>
+                      {option.value} - {option.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="wave-swatch" style={{ background: CHANNEL_OPTIONS.find((c) => c.value === waveChannelMap.sine)?.swatch }} />
+              </div>
+
+              <div className="wave-mapper-row">
+                <span className="wave-name">Square</span>
+                <select
+                  value={waveChannelMap.square}
+                  onChange={(e) => setWaveChannelMap((prev) => ({ ...prev, square: e.target.value as WaveChannel }))}
+                >
+                  {CHANNEL_OPTIONS.map((option) => (
+                    <option key={`square_${option.value}`} value={option.value}>
+                      {option.value} - {option.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="wave-swatch" style={{ background: CHANNEL_OPTIONS.find((c) => c.value === waveChannelMap.square)?.swatch }} />
+              </div>
+
+              <div className="wave-mapper-row">
+                <span className="wave-name">Sawtooth</span>
+                <select
+                  value={waveChannelMap.sawtooth}
+                  onChange={(e) => setWaveChannelMap((prev) => ({ ...prev, sawtooth: e.target.value as WaveChannel }))}
+                >
+                  {CHANNEL_OPTIONS.map((option) => (
+                    <option key={`saw_${option.value}`} value={option.value}>
+                      {option.value} - {option.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="wave-swatch" style={{ background: CHANNEL_OPTIONS.find((c) => c.value === waveChannelMap.sawtooth)?.swatch }} />
+              </div>
+
+              <div className="wave-mapper-row">
+                <span className="wave-name">Triangle</span>
+                <select
+                  value={waveChannelMap.triangle}
+                  onChange={(e) => setWaveChannelMap((prev) => ({ ...prev, triangle: e.target.value as WaveChannel }))}
+                >
+                  {CHANNEL_OPTIONS.map((option) => (
+                    <option key={`tri_${option.value}`} value={option.value}>
+                      {option.value} - {option.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="wave-swatch" style={{ background: CHANNEL_OPTIONS.find((c) => c.value === waveChannelMap.triangle)?.swatch }} />
+              </div>
+            </div>
+            <small>Allowed values only: R, G, B, L, M (shown with live color swatch).</small>
           </div>
 
           <div className="control-group checkbox">
@@ -527,6 +698,12 @@ export function AudioSynthesizer() {
         <p>
           Based on the ANS synthesizer by Yevgeny Murzin (1958), featuring 720 oscillators 
           spanning 10 octaves with multiple waveform types.
+        </p>
+        <p>
+          Source repository used in this app:{' '}
+          <a href="https://github.com/frankenbeans/MZ2SYNTH" target="_blank" rel="noreferrer">
+            github.com/frankenbeans/MZ2SYNTH
+          </a>
         </p>
       </div>
     </div>

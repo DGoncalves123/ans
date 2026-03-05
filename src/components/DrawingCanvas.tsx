@@ -1,4 +1,5 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import * as CanvasMode from 'art/modes/canvas';
 import './DrawingCanvas.css';
 
 interface DrawingCanvasProps {
@@ -7,255 +8,371 @@ interface DrawingCanvasProps {
   onImageChange?: (imageData: ImageData) => void;
 }
 
+type Point = { x: number; y: number };
+
+type BrushPresetId = 'fine' | 'marker' | 'soft' | 'neon';
+
+interface BrushPreset {
+  id: BrushPresetId;
+  label: string;
+  icon: string;
+  widthMultiplier: number;
+  opacity: number;
+}
+
+interface StrokeShape {
+  id: string;
+  points: Point[];
+  color: string;
+  size: number;
+  cap: 'round' | 'square';
+  join: 'round' | 'miter';
+}
+
+type ArtSurface = {
+  element: HTMLCanvasElement;
+  context: CanvasRenderingContext2D;
+  render: () => void;
+  resize: (width: number, height: number) => void;
+  inject: (target: HTMLElement) => void;
+  eject: () => void;
+};
+
+type ArtGroup = {
+  empty: () => void;
+  inject: (target: ArtSurface) => ArtGroup;
+  grab: (...nodes: ArtShape[]) => ArtGroup;
+};
+
+type ArtPath = {
+  moveTo: (x: number, y: number) => ArtPath;
+  lineTo: (x: number, y: number) => ArtPath;
+  close: () => ArtPath;
+};
+
+type ArtShape = {
+  stroke: (color: string, width: number, cap: 'round' | 'square', join: 'round' | 'miter') => ArtShape;
+  draw: (path: ArtPath) => ArtShape;
+  fill: (color: string) => ArtShape;
+};
+
+const ArtLib = CanvasMode as unknown as {
+  Surface: new (width: number, height: number) => ArtSurface;
+  Group: new () => ArtGroup;
+  Shape: new (path?: ArtPath) => ArtShape;
+  Path: new () => ArtPath;
+};
+
+const BRUSH_PRESETS: BrushPreset[] = [
+  { id: 'fine', label: 'Fine', icon: '✒️', widthMultiplier: 0.7, opacity: 1 },
+  { id: 'marker', label: 'Marker', icon: '🖊️', widthMultiplier: 1.4, opacity: 0.55 },
+  { id: 'soft', label: 'Soft', icon: '🫧', widthMultiplier: 2.2, opacity: 0.25 },
+  { id: 'neon', label: 'Neon', icon: '✨', widthMultiplier: 1.1, opacity: 0.85 },
+];
+
+const PALETTE = [
+  '#ff2d55', '#ff9500', '#ffd60a', '#34c759', '#00c7be', '#0a84ff', '#5e5ce6', '#bf5af2',
+  '#ff375f', '#ff9f0a', '#64d2ff', '#32d74b', '#1e88e5', '#8e8dff', '#ffffff', '#000000',
+];
+
+function cloneStrokes(strokes: StrokeShape[]): StrokeShape[] {
+  return strokes.map((stroke) => ({
+    ...stroke,
+    points: stroke.points.map((point) => ({ ...point })),
+  }));
+}
+
+function getBrushPreset(id: BrushPresetId): BrushPreset {
+  return BRUSH_PRESETS.find((preset) => preset.id === id) ?? BRUSH_PRESETS[0];
+}
+
 export function DrawingCanvas({ width, height, onImageChange }: DrawingCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const widthRef = useRef(width);
+  const heightRef = useRef(height);
+  const surfaceRef = useRef<ArtSurface | null>(null);
+  const layerRef = useRef<ArtGroup | null>(null);
+  const strokesRef = useRef<StrokeShape[]>([]);
+  const currentStrokeRef = useRef<StrokeShape | null>(null);
+  const currentShapeRef = useRef<ArtShape | null>(null);
+  const undoStackRef = useRef<StrokeShape[][]>([[]]);
+
   const [isDrawing, setIsDrawing] = useState(false);
-  const isDrawingRef = useRef(false); // Track drawing state synchronously
-  const [brushSize, setBrushSize] = useState(5);
-  const [brushColor, setBrushColor] = useState({ r: 255, g: 0, b: 0 });
-  const [brushShape, setBrushShape] = useState<'circle' | 'square'>('circle');
-  const [tool, setTool] = useState<'draw' | 'erase'>('draw');
-  const hasInitializedRef = useRef(false);
-  const undoStackRef = useRef<ImageData[]>([]);
+  const isDrawingRef = useRef(false);
+  const [brushSize, setBrushSize] = useState(10);
+  const [brushColor, setBrushColor] = useState({ r: 255, g: 45, b: 85 });
+  const [brushPresetId, setBrushPresetId] = useState<BrushPresetId>('fine');
+  const brushSizeRef = useRef(brushSize);
+  const brushColorRef = useRef(brushColor);
+  const brushPresetIdRef = useRef(brushPresetId);
   const [canUndo, setCanUndo] = useState(false);
-  const lastPosRef = useRef<{ x: number; y: number } | null>(null);
 
-  // Initialize canvas with black background - ONLY ONCE
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || hasInitializedRef.current) return;
+    brushSizeRef.current = brushSize;
+  }, [brushSize]);
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    hasInitializedRef.current = true;
-    
-    // Initialize with black background
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, width, height);
-    
-    // Save initial state for undo
-    const initialState = ctx.getImageData(0, 0, width, height);
-    undoStackRef.current = [initialState];
-    
-    // Notify parent of initial state
-    if (onImageChange) {
-      const imageData = ctx.getImageData(0, 0, width, height);
-      onImageChange(imageData);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [width, height]);
-
-  // Global mouse up listener to catch mouse release anywhere on the page
   useEffect(() => {
-    const handleGlobalMouseUp = () => {
-      if (isDrawingRef.current) {
-        setIsDrawing(false);
-        isDrawingRef.current = false;
-        notifyParentOfChange();
-      }
-    };
+    brushColorRef.current = brushColor;
+  }, [brushColor]);
 
-    window.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    brushPresetIdRef.current = brushPresetId;
+  }, [brushPresetId]);
+
+  useEffect(() => {
+    widthRef.current = width;
+    heightRef.current = height;
+  }, [height, width]);
+
+  const drawBackground = useCallback(() => {
+    const layer = layerRef.current;
+    if (!layer) return;
+
+    const currentWidth = widthRef.current;
+    const currentHeight = heightRef.current;
+    const backgroundPath = new ArtLib.Path()
+      .moveTo(0, 0)
+      .lineTo(currentWidth, 0)
+      .lineTo(currentWidth, currentHeight)
+      .lineTo(0, currentHeight)
+      .close();
+    const background = new ArtLib.Shape(backgroundPath).fill('#000000');
+    layer.grab(background);
   }, []);
 
-  const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return null;
+  const buildPath = useCallback((points: Point[]) => {
+    const path = new ArtLib.Path();
+    if (points.length === 0) return path;
 
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-
-    return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
-    };
-  };
-
-  const draw = (x: number, y: number, connectLine = false) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const color = tool === 'erase' ? '#000000' : `rgb(${brushColor.r}, ${brushColor.g}, ${brushColor.b})`;
-    
-    // Draw line from last position if connectLine is true
-    if (connectLine && lastPosRef.current) {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = brushSize * 2;
-      ctx.lineCap = brushShape === 'circle' ? 'round' : 'square';
-      ctx.lineJoin = brushShape === 'circle' ? 'round' : 'miter';
-      
-      ctx.beginPath();
-      ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
-      ctx.lineTo(x, y);
-      ctx.stroke();
+    path.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i += 1) {
+      path.lineTo(points[i].x, points[i].y);
     }
-    
-    // Draw brush shape
-    if (brushShape === 'circle') {
-      ctx.beginPath();
-      ctx.arc(x, y, brushSize, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-    } else {
-      ctx.fillStyle = color;
-      ctx.fillRect(x - brushSize, y - brushSize, brushSize * 2, brushSize * 2);
-    }
-    
-    lastPosRef.current = { x, y };
-  };
 
-  const notifyParentOfChange = () => {
-    const canvas = canvasRef.current;
+    if (points.length === 1) {
+      path.lineTo(points[0].x + 0.01, points[0].y + 0.01);
+    }
+
+    return path;
+  }, []);
+
+  const createStrokeShape = useCallback(
+    (stroke: StrokeShape) => {
+      const path = buildPath(stroke.points);
+      return new ArtLib.Shape(path).stroke(stroke.color, stroke.size, stroke.cap, stroke.join);
+    },
+    [buildPath]
+  );
+
+  const renderStrokes = useCallback(() => {
+    const layer = layerRef.current;
+    const surface = surfaceRef.current;
+    if (!layer || !surface) return;
+
+    layer.empty();
+    drawBackground();
+    for (const stroke of strokesRef.current) {
+      layer.grab(createStrokeShape(stroke));
+    }
+
+    // Additive color blending: painting over color sums light values.
+    surface.context.globalCompositeOperation = 'lighter';
+    surface.render();
+  }, [createStrokeShape, drawBackground]);
+
+  const notifyParentOfChange = useCallback(() => {
+    const canvas = surfaceRef.current?.element;
     if (!canvas || !onImageChange) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, widthRef.current, heightRef.current);
     onImageChange(imageData);
-  };
+  }, [onImageChange]);
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const coords = getCanvasCoordinates(e);
-    if (!coords) return;
+  const saveStateForUndo = useCallback(() => {
+    undoStackRef.current.push(cloneStrokes(strokesRef.current));
 
-    // Save state for undo before starting new stroke
-    saveStateForUndo();
-
-    setIsDrawing(true);
-    isDrawingRef.current = true;
-    lastPosRef.current = null; // Reset last position for new stroke
-    draw(coords.x, coords.y, false);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
-
-    const coords = getCanvasCoordinates(e);
-    if (!coords) return;
-
-    draw(coords.x, coords.y, true); // Connect with line for smooth drawing
-  };
-
-  const handleMouseUp = () => {
-    if (isDrawingRef.current) {
-      setIsDrawing(false);
-      isDrawingRef.current = false;
-      lastPosRef.current = null;
-      notifyParentOfChange();
-    }
-  };
-
-  const saveStateForUndo = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const state = ctx.getImageData(0, 0, width, height);
-    undoStackRef.current.push(state);
-    
-    // Limit undo stack to 20 states
     if (undoStackRef.current.length > 20) {
       undoStackRef.current.shift();
     }
-    
+
     setCanUndo(undoStackRef.current.length > 1);
-  };
+  }, []);
+
+  const getPointerCoordinates = useCallback((event: PointerEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = widthRef.current / rect.width;
+    const scaleY = heightRef.current / rect.height;
+
+    return {
+      x: (event.clientX - rect.left) * scaleX,
+      y: (event.clientY - rect.top) * scaleY,
+    };
+  }, []);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+
+    host.innerHTML = '';
+    const surface = new ArtLib.Surface(widthRef.current, heightRef.current);
+    surface.inject(host);
+
+    const layer = new ArtLib.Group().inject(surface);
+    surfaceRef.current = surface;
+    layerRef.current = layer;
+    strokesRef.current = [];
+    undoStackRef.current = [[]];
+    setCanUndo(false);
+    renderStrokes();
+    notifyParentOfChange();
+
+    const canvas = surface.element;
+    canvas.classList.add('drawing-canvas');
+    canvas.style.touchAction = 'none';
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 && event.pointerType !== 'touch') return;
+
+      saveStateForUndo();
+      setIsDrawing(true);
+      isDrawingRef.current = true;
+
+      const point = getPointerCoordinates(event, canvas);
+      const currentBrushColor = brushColorRef.current;
+      const preset = getBrushPreset(brushPresetIdRef.current);
+      const stroke: StrokeShape = {
+        id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
+        points: [point],
+        color: `rgba(${currentBrushColor.r}, ${currentBrushColor.g}, ${currentBrushColor.b}, ${preset.opacity})`,
+        size: Math.max(1, brushSizeRef.current * preset.widthMultiplier),
+        cap: 'round',
+        join: 'round',
+      };
+
+      strokesRef.current = [...strokesRef.current, stroke];
+      currentStrokeRef.current = stroke;
+
+      const shape = createStrokeShape(stroke);
+      currentShapeRef.current = shape;
+      layer.grab(shape);
+      surface.context.globalCompositeOperation = 'lighter';
+      surface.render();
+
+      if (canvas.setPointerCapture) {
+        canvas.setPointerCapture(event.pointerId);
+      }
+
+      event.preventDefault();
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isDrawingRef.current || !currentStrokeRef.current || !currentShapeRef.current) return;
+
+      const point = getPointerCoordinates(event, canvas);
+      currentStrokeRef.current.points.push(point);
+      currentShapeRef.current.draw(buildPath(currentStrokeRef.current.points));
+      surface.context.globalCompositeOperation = 'lighter';
+      surface.render();
+      event.preventDefault();
+    };
+
+    const stopDrawing = (event: PointerEvent) => {
+      if (!isDrawingRef.current) return;
+
+      isDrawingRef.current = false;
+      setIsDrawing(false);
+      currentStrokeRef.current = null;
+      currentShapeRef.current = null;
+
+      if (canvas.releasePointerCapture && canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+
+      notifyParentOfChange();
+      event.preventDefault();
+    };
+
+    const handleWindowPointerUp = (event: PointerEvent) => {
+      stopDrawing(event);
+    };
+
+    canvas.addEventListener('pointerdown', handlePointerDown);
+    canvas.addEventListener('pointermove', handlePointerMove);
+    canvas.addEventListener('pointerup', stopDrawing);
+    canvas.addEventListener('pointercancel', stopDrawing);
+    window.addEventListener('pointerup', handleWindowPointerUp);
+
+    return () => {
+      canvas.removeEventListener('pointerdown', handlePointerDown);
+      canvas.removeEventListener('pointermove', handlePointerMove);
+      canvas.removeEventListener('pointerup', stopDrawing);
+      canvas.removeEventListener('pointercancel', stopDrawing);
+      window.removeEventListener('pointerup', handleWindowPointerUp);
+      surface.eject();
+      surfaceRef.current = null;
+      layerRef.current = null;
+    };
+  }, [buildPath, createStrokeShape, getPointerCoordinates, notifyParentOfChange, renderStrokes, saveStateForUndo]);
+
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+
+    surface.resize(width, height);
+    renderStrokes();
+    notifyParentOfChange();
+  }, [height, notifyParentOfChange, renderStrokes, width]);
 
   const handleUndo = () => {
     if (undoStackRef.current.length <= 1) return;
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Remove current state
     undoStackRef.current.pop();
-    
-    // Restore previous state
-    const previousState = undoStackRef.current[undoStackRef.current.length - 1];
-    ctx.putImageData(previousState, 0, 0);
-    
+    strokesRef.current = cloneStrokes(undoStackRef.current[undoStackRef.current.length - 1]);
+    renderStrokes();
     setCanUndo(undoStackRef.current.length > 1);
     notifyParentOfChange();
   };
 
   const handleClear = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (strokesRef.current.length === 0) return;
 
     saveStateForUndo();
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, width, height);
+    strokesRef.current = [];
+    renderStrokes();
     notifyParentOfChange();
   };
 
-  const rgbToHex = (r: number, g: number, b: number) => {
-    return '#' + [r, g, b].map(x => {
-      const hex = x.toString(16);
-      return hex.length === 1 ? '0' + hex : hex;
-    }).join('');
-  };
+  const setColorFromHex = (hex: string) => {
+    const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (!match) return;
 
-  const hexToRgb = (hex: string) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
-    } : { r: 255, g: 0, b: 0 };
+    setBrushColor({
+      r: parseInt(match[1], 16),
+      g: parseInt(match[2], 16),
+      b: parseInt(match[3], 16),
+    });
   };
 
   return (
     <div className="drawing-canvas-container">
       <div className="canvas-toolbar">
         <div className="tool-group">
-          <button
-            className={tool === 'draw' ? 'active' : ''}
-            onClick={() => setTool('draw')}
-            title="Draw"
-          >
-            <span role="img" aria-label="Pencil">✏️</span> Draw
-          </button>
-          <button
-            className={tool === 'erase' ? 'active' : ''}
-            onClick={() => setTool('erase')}
-            title="Erase"
-          >
-            <span role="img" aria-label="Eraser">🧹</span> Erase
-          </button>
-        </div>
-
-        <div className="tool-group">
-          <label>Brush Shape:</label>
-          <button
-            className={brushShape === 'circle' ? 'active' : ''}
-            onClick={() => setBrushShape('circle')}
-            title="Circle brush"
-          >
-            <span role="img" aria-label="Circle">⚫</span>
-          </button>
-          <button
-            className={brushShape === 'square' ? 'active' : ''}
-            onClick={() => setBrushShape('square')}
-            title="Square brush"
-          >
-            <span role="img" aria-label="Square">⬛</span>
-          </button>
+          <label>Brush:</label>
+          <div className="brush-preset-grid">
+            {BRUSH_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                className={brushPresetId === preset.id ? 'active' : ''}
+                onClick={() => setBrushPresetId(preset.id)}
+                title={preset.label}
+              >
+                <span aria-hidden="true">{preset.icon}</span> {preset.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="tool-group">
@@ -264,7 +381,7 @@ export function DrawingCanvas({ width, height, onImageChange }: DrawingCanvasPro
             <input
               type="range"
               min="1"
-              max="30"
+              max="40"
               value={brushSize}
               onChange={(e) => setBrushSize(Number(e.target.value))}
             />
@@ -273,20 +390,58 @@ export function DrawingCanvas({ width, height, onImageChange }: DrawingCanvasPro
         </div>
 
         <div className="tool-group color-picker-group">
-          <label>
-            Color:
-            <input
-              type="color"
-              value={rgbToHex(brushColor.r, brushColor.g, brushColor.b)}
-              onChange={(e) => setBrushColor(hexToRgb(e.target.value))}
-              className="color-input"
-            />
-          </label>
-          <div className="rgb-values">
-            <span>R:{brushColor.r}</span>
-            <span>G:{brushColor.g}</span>
-            <span>B:{brushColor.b}</span>
+          <label>Color Mixer</label>
+          <div className="swatch-preview" style={{ backgroundColor: `rgb(${brushColor.r}, ${brushColor.g}, ${brushColor.b})` }} />
+
+          <div className="palette-grid">
+            {PALETTE.map((hex) => (
+              <button
+                key={hex}
+                type="button"
+                className="palette-swatch"
+                style={{ backgroundColor: hex }}
+                onClick={() => setColorFromHex(hex)}
+                title={hex}
+                aria-label={`Pick color ${hex}`}
+              />
+            ))}
           </div>
+
+          <label className="rgb-slider">
+            R
+            <input
+              type="range"
+              min="0"
+              max="255"
+              value={brushColor.r}
+              onChange={(e) => setBrushColor((prev) => ({ ...prev, r: Number(e.target.value) }))}
+            />
+            <span>{brushColor.r}</span>
+          </label>
+
+          <label className="rgb-slider">
+            G
+            <input
+              type="range"
+              min="0"
+              max="255"
+              value={brushColor.g}
+              onChange={(e) => setBrushColor((prev) => ({ ...prev, g: Number(e.target.value) }))}
+            />
+            <span>{brushColor.g}</span>
+          </label>
+
+          <label className="rgb-slider">
+            B
+            <input
+              type="range"
+              min="0"
+              max="255"
+              value={brushColor.b}
+              onChange={(e) => setBrushColor((prev) => ({ ...prev, b: Number(e.target.value) }))}
+            />
+            <span>{brushColor.b}</span>
+          </label>
         </div>
 
         <div className="tool-group">
@@ -299,19 +454,10 @@ export function DrawingCanvas({ width, height, onImageChange }: DrawingCanvasPro
         </div>
       </div>
 
-      <div className="canvas-wrapper" style={{ width: width }}>
-        <canvas
-          ref={canvasRef}
-          width={width}
-          height={height}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          className="drawing-canvas"
-        />
+      <div className="canvas-wrapper">
+        <div ref={hostRef} className={`canvas-host ${isDrawing ? 'is-drawing' : ''}`} />
         <div className="canvas-info">
-          {width} × {height} pixels
+          Additive color mode: painting colors on top of each other sums light values.
         </div>
       </div>
     </div>

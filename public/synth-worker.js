@@ -4,7 +4,8 @@
  */
 
 // Import the WASM module loader
-self.importScripts('/mz2synth.js');
+const workerBasePath = self.location.pathname.replace(/[^/]*$/, '');
+self.importScripts(`${workerBasePath}mz2synth.js`);
 
 let wasmModule = null;
 let isInitialized = false;
