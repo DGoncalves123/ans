@@ -14,3 +14,12 @@ root.render(
     </BrowserRouter>
   </StrictMode>,
 );
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    const swUrl = `${import.meta.env.BASE_URL}service-worker.js`;
+    navigator.serviceWorker.register(swUrl, { scope: import.meta.env.BASE_URL }).catch((error) => {
+      console.error('Service worker registration failed:', error);
+    });
+  });
+}

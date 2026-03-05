@@ -32,7 +32,7 @@ interface WaveChannelMap {
   triangle: WaveChannel;
 }
 
-const DRAWING_CANVAS_WIDTH = 720;
+const DRAWING_CANVAS_WIDTH = 1100;
 const DRAWING_CANVAS_HEIGHT = 720;
 
 const CHANNEL_OPTIONS: Array<{ value: WaveChannel; label: string; swatch: string }> = [
@@ -435,7 +435,7 @@ export function AudioSynthesizer() {
     <div className="audio-synthesizer">
 
       <div className="synthesizer-layout">
-        <div className="drawing-section">
+        <div className="layout-box canvas-box">
           <DrawingCanvas
             width={DRAWING_CANVAS_WIDTH}
             height={canvasHeight}
@@ -458,12 +458,12 @@ export function AudioSynthesizer() {
           </div>
         </div>
 
-        <div className="controls-section">
+        <div className="layout-box controls-box">
           <h2>Synthesis Settings</h2>
 
           <div className="control-group">
             <label>
-              Playback Speed (columns/sec):
+              <strong>Playback Speed (columns/sec):</strong>
               <input
                 type="number"
                 min="1"
@@ -477,7 +477,7 @@ export function AudioSynthesizer() {
 
           <div className="control-group">
             <label>
-              Synthesis Width (time axis):
+              <strong>Synthesis Width (time axis):</strong>
               <input
                 type="range"
                 min="70"
@@ -519,22 +519,7 @@ export function AudioSynthesizer() {
           </div>
 
           <div className="control-group">
-            <label>
-              Volume:
-              <input
-                type="range"
-                min="0.01"
-                max="1.0"
-                step="0.01"
-                value={config.volumeMultiplier}
-                onChange={(e) => setConfig({ ...config, volumeMultiplier: Number(e.target.value) })}
-              />
-              <span>{(config.volumeMultiplier * 100).toFixed(0)}%</span>
-            </label>
-          </div>
-
-          <div className="control-group">
-            <label>Wave Channel Mapper:</label>
+            <label><strong>Wave Channel Mapper:</strong></label>
             <div className="wave-mapper-grid">
               <div className="wave-mapper-row">
                 <span className="wave-name">Sine</span>
@@ -610,6 +595,21 @@ export function AudioSynthesizer() {
             </label>
           </div>
 
+          <div className="control-group volume-group">
+            <label>
+              <strong>Volume:</strong>
+              <input
+                type="range"
+                min="0.01"
+                max="1.0"
+                step="0.01"
+                value={config.volumeMultiplier}
+                onChange={(e) => setConfig({ ...config, volumeMultiplier: Number(e.target.value) })}
+              />
+              <span>{(config.volumeMultiplier * 100).toFixed(0)}%</span>
+            </label>
+          </div>
+
           <button
             className="synthesize-button"
             onClick={handleSynthesize}
@@ -635,76 +635,80 @@ export function AudioSynthesizer() {
         </div>
       </div>
 
-      {generatedTracks.length > 0 && (
-        <div className="tracks-panel">
+      <div className="secondary-layout">
+        <div className="layout-box tracks-box">
           <h3>
             <span role="img" aria-label="Music">🎵</span> Generated Tracks ({generatedTracks.length})
           </h3>
-          <div className="tracks-list">
-            {generatedTracks.map((track) => (
-              <div key={track.id} className={`track-item ${track.isPlaying ? 'playing' : ''} ${track.isGenerating ? 'generating' : ''}`}>
-                <div className="track-info">
-                  <div className="track-time">
-                    {track.timestamp.toLocaleTimeString()}
-                    {track.isGenerating && (
-                      <span className="generating-badge">
-                        <span role="img" aria-label="Generating">⏳</span> Generating...
+          {generatedTracks.length === 0 ? (
+            <p className="empty-tracks">No generated tracks yet. Draw something and press Generate Audio.</p>
+          ) : (
+            <div className="tracks-list">
+              {generatedTracks.map((track) => (
+                <div key={track.id} className={`track-item ${track.isPlaying ? 'playing' : ''} ${track.isGenerating ? 'generating' : ''}`}>
+                  <div className="track-info">
+                    <div className="track-time">
+                      {track.timestamp.toLocaleTimeString()}
+                      {track.isGenerating && (
+                        <span className="generating-badge">
+                          <span role="img" aria-label="Generating">⏳</span> Generating...
+                        </span>
+                      )}
+                    </div>
+                    <div className="track-details">
+                      {track.isGenerating ? (
+                        <span>Synthesizing audio in background thread...</span>
+                      ) : (
+                        <>
+                          Actual Duration: {track.duration.toFixed(2)}s | 
+                          Sample Rate: {track.sampleRate}Hz | 
+                          Samples: {track.audioBuffer ? track.audioBuffer.length.toLocaleString() : 0}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="track-controls">
+                    <button
+                      className="track-button play-button"
+                      onClick={() => handlePlayTrack(track.id)}
+                      title={track.isGenerating ? 'Generating...' : track.isPlaying ? 'Pause' : 'Play'}
+                      aria-label={track.isGenerating ? 'Generating' : track.isPlaying ? 'Pause' : 'Play'}
+                      disabled={track.isGenerating}
+                    >
+                      <span role="img" aria-label={track.isGenerating ? 'Generating' : track.isPlaying ? 'Pause' : 'Play'}>
+                        {track.isGenerating ? '⏳' : track.isPlaying ? '⏸️' : '▶️'}
                       </span>
-                    )}
-                  </div>
-                  <div className="track-details">
-                    {track.isGenerating ? (
-                      <span>Synthesizing audio in background thread...</span>
-                    ) : (
-                      <>
-                        Actual Duration: {track.duration.toFixed(2)}s | 
-                        Sample Rate: {track.sampleRate}Hz | 
-                        Samples: {track.audioBuffer ? track.audioBuffer.length.toLocaleString() : 0}
-                      </>
-                    )}
+                    </button>
+                    <button
+                      className="track-button delete-button"
+                      onClick={() => handleDeleteTrack(track.id)}
+                      title="Delete"
+                      aria-label="Delete track"
+                    >
+                      <span role="img" aria-label="Delete">
+                        🗑️
+                      </span>
+                    </button>
                   </div>
                 </div>
-                <div className="track-controls">
-                  <button
-                    className="track-button play-button"
-                    onClick={() => handlePlayTrack(track.id)}
-                    title={track.isGenerating ? 'Generating...' : track.isPlaying ? 'Pause' : 'Play'}
-                    aria-label={track.isGenerating ? 'Generating' : track.isPlaying ? 'Pause' : 'Play'}
-                    disabled={track.isGenerating}
-                  >
-                    <span role="img" aria-label={track.isGenerating ? 'Generating' : track.isPlaying ? 'Pause' : 'Play'}>
-                      {track.isGenerating ? '⏳' : track.isPlaying ? '⏸️' : '▶️'}
-                    </span>
-                  </button>
-                  <button
-                    className="track-button delete-button"
-                    onClick={() => handleDeleteTrack(track.id)}
-                    title="Delete"
-                    aria-label="Delete track"
-                  >
-                    <span role="img" aria-label="Delete">
-                      🗑️
-                    </span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
 
-      <div className="info-panel">
-        <h3>About MZ2SYNTH</h3>
-        <p>
-          Based on the ANS synthesizer by Yevgeny Murzin (1958), featuring 720 oscillators 
-          spanning 10 octaves with multiple waveform types.
-        </p>
-        <p>
-          Source repository used in this app:{' '}
-          <a href="https://github.com/frankenbeans/MZ2SYNTH" target="_blank" rel="noreferrer">
-            github.com/frankenbeans/MZ2SYNTH
-          </a>
-        </p>
+        <div className="layout-box info-box">
+          <h3>About MZ2SYNTH</h3>
+          <p>
+            Based on the ANS synthesizer by Yevgeny Murzin (1958), featuring 720 oscillators 
+            spanning 10 octaves with multiple waveform types.
+          </p>
+          <p>
+            Source repository used in this app:{' '}
+            <a href="https://github.com/frankenbeans/MZ2SYNTH" target="_blank" rel="noreferrer">
+              github.com/frankenbeans/MZ2SYNTH
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );

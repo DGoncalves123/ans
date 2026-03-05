@@ -1,34 +1,85 @@
-.drawing-canvas-container {
+.drawing-canvas-layout {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: clamp(0.55rem, 1vw, 0.9rem);
   width: 100%;
+}
+
+.drawing-box {
+  border-radius: 8px;
+}
+
+.canvas-main-box {
+  background: transparent;
+}
+
+.canvas-tools-box {
+  background: transparent;
 }
 
 .canvas-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  padding: 0.8rem;
+  flex-direction: column;
+  gap: clamp(0.45rem, 0.9vw, 0.75rem);
+  padding: clamp(0.5rem, 1.2vw, 0.85rem);
   background: linear-gradient(135deg, #f2f4ff 0%, #e5f8f5 100%);
   border-radius: 8px;
-  align-items: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.toolbar-box {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  padding: clamp(0.45rem, 1vw, 0.65rem);
+}
+
+.brush-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: clamp(0.45rem, 0.9vw, 0.75rem);
+  align-items: start;
 }
 
 .tool-group {
   display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  padding: 0.5rem 0.7rem;
-  background: rgba(255, 255, 255, 0.95);
+  flex-direction: column;
+  gap: 0.45rem;
+  align-items: stretch;
+  padding: 0;
+  background: transparent;
   border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: none;
+}
+
+.brush-group {
+  grid-column: span 6;
+}
+
+.size-group {
+  grid-column: span 2;
+}
+
+.mixer-group {
+  grid-column: span 4;
+}
+
+.action-group {
+  grid-column: span 12;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+.action-settings-box .action-group {
+  margin: 0;
 }
 
 .tool-group button {
-  min-height: 40px;
-  padding: 0.5rem 0.9rem;
+  min-height: clamp(38px, 4.2vw, 44px);
+  padding: clamp(0.4rem, 0.9vw, 0.62rem) clamp(0.52rem, 1vw, 0.84rem);
   border: 2px solid #d7dbe8;
   border-radius: 6px;
   background: #ffffff;
@@ -60,15 +111,20 @@
 
 .tool-group label {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-direction: column;
   gap: 0.5rem;
-  font-size: 0.875rem;
+  font-size: clamp(0.78rem, 1.6vw, 0.9rem);
   font-weight: 500;
   color: #333;
 }
 
+.size-label {
+  align-items: stretch;
+}
+
 .tool-group input[type='range'] {
-  width: 120px;
+  width: 100%;
   cursor: pointer;
 }
 
@@ -86,8 +142,8 @@
 }
 
 .brush-preset-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.4rem;
 }
 
@@ -115,11 +171,11 @@
 }
 
 .rgb-slider {
-  display: grid;
-  grid-template-columns: 20px 1fr 44px;
-  align-items: center;
-  width: 100%;
-  gap: 0.45rem;
+  display: grid !important;
+  grid-template-columns: 20px 1fr 44px !important;
+  align-items: center !important;
+  width: 100% !important;
+  gap: 0.45rem !important;
 }
 
 .rgb-slider span {
@@ -161,7 +217,8 @@
   display: block;
   width: 100%;
   max-width: 100%;
-  border: 3px solid #2563eb;
+  aspect-ratio: 1100 / 720;
+  border: 2px solid #2563eb;
   border-radius: 8px;
   overflow: hidden;
   background: #1a1a1a;
@@ -171,8 +228,8 @@
 .canvas-host {
   display: block;
   width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
+  height: 100%;
+  overflow: hidden;
   -webkit-overflow-scrolling: touch;
   touch-action: none;
 }
@@ -180,7 +237,7 @@
 .canvas-host canvas {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
   cursor: crosshair;
   image-rendering: pixelated;
   touch-action: none;
@@ -192,9 +249,9 @@
 
 .canvas-info {
   position: absolute;
-  bottom: 0;
   left: 0;
   right: 0;
+  bottom: 0;
   padding: 0.5rem;
   background: rgba(0, 0, 0, 0.8);
   color: white;
@@ -205,15 +262,34 @@
 
 @media (max-width: 800px) {
   .canvas-toolbar {
+    gap: 0.55rem;
+    padding: 0.65rem;
+  }
+
+  .toolbar-box {
+    padding: 0.55rem 0.6rem;
+  }
+
+  .brush-settings-grid {
+    grid-template-columns: 1fr;
     gap: 0.5rem;
-    padding: 0.6rem;
+  }
+
+  .brush-group,
+  .size-group,
+  .mixer-group,
+  .action-group {
+    grid-column: span 1;
+  }
+
+  .canvas-toolbar {
+    gap: 0.5rem;
   }
 
   .tool-group {
     width: 100%;
     justify-content: flex-start;
-    flex-wrap: wrap;
-    padding: 0.55rem 0.6rem;
+    padding: 0;
   }
 
   .tool-group button {
@@ -222,15 +298,46 @@
   }
 
   .tool-group input[type='range'] {
-    width: min(190px, 55vw);
+    width: 100%;
+  }
+
+  .brush-preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .palette-grid {
     grid-template-columns: repeat(6, 1fr);
   }
 
-  .rgb-values {
+  .action-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .action-group button {
     width: 100%;
-    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1050px) {
+  .brush-settings-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .brush-group {
+    grid-column: span 6;
+  }
+
+  .size-group {
+    grid-column: span 2;
+  }
+
+  .mixer-group {
+    grid-column: span 4;
+  }
+
+  .brush-preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

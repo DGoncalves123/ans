@@ -1,7 +1,11 @@
 .audio-synthesizer {
-  max-width: 1400px;
+  max-width: min(1900px, 100vw);
+  width: 100%;
   margin: 0 auto;
-  padding: 2rem;
+  padding: clamp(0.6rem, 1.8vw, 1.8rem);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.8rem, 1.8vw, 1.4rem);
 }
 
 .audio-synthesizer h1 {
@@ -16,26 +20,66 @@
 
 .synthesizer-layout {
   display: grid;
-  grid-template-columns: 1fr 400px;
-  gap: 2rem;
-  margin-bottom: 2rem;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    'canvas'
+    'controls';
+  gap: clamp(0.8rem, 1.8vw, 1.4rem);
+  align-items: start;
 }
 
-@media (max-width: 1200px) {
+@media (min-width: 1650px) {
   .synthesizer-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 520px);
+    grid-template-areas: 'canvas controls';
   }
 }
 
-.drawing-section,
-.controls-section {
+@media (min-width: 1100px) and (max-width: 1649px) {
+  .synthesizer-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 460px);
+    grid-template-areas: 'canvas controls';
+  }
+}
+
+.layout-box {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
   background: #f5f5f5;
-  padding: 1.5rem;
+  padding: clamp(0.75rem, 1.5vw, 1.3rem);
   border-radius: 8px;
 }
 
-.drawing-section h2,
-.controls-section h2 {
+.secondary-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(0.8rem, 1.6vw, 1.2rem);
+  align-items: stretch;
+}
+
+.secondary-layout .layout-box {
+  flex: 1 1 360px;
+  min-width: 280px;
+  max-width: 560px;
+}
+
+.canvas-box {
+  grid-area: canvas;
+}
+
+.controls-box {
+  grid-area: controls;
+  display: flex;
+  flex-direction: column;
+  font-size: clamp(0.86rem, 1vw, 0.98rem);
+  max-width: 520px;
+  justify-self: start;
+}
+
+.canvas-box h2,
+.controls-box h2 {
   margin-top: 0;
   margin-bottom: 1rem;
   font-size: 1.25rem;
@@ -120,6 +164,27 @@
   font-size: 0.75rem;
 }
 
+.volume-group label {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.volume-group label strong {
+  white-space: nowrap;
+}
+
+.volume-group input[type='range'] {
+  width: 100%;
+  margin-right: 0;
+}
+
+.volume-group span {
+  min-width: 48px;
+  text-align: right;
+}
+
 .wave-mapper-grid {
   display: flex;
   flex-direction: column;
@@ -174,7 +239,6 @@
 }
 
 .synthesize-button:hover:not(:disabled) {
-  transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
@@ -238,18 +302,12 @@
   margin-top: 0.5rem;
 }
 
-.info-panel {
-  background: #f5f5f5;
-  padding: 1.5rem;
-  border-radius: 8px;
-}
-
-.info-panel h3 {
+.info-box h3 {
   margin-top: 0;
   color: #333;
 }
 
-.info-panel p {
+.info-box p {
   color: #555;
   line-height: 1.6;
 }
@@ -265,15 +323,12 @@
   font-size: 0.875rem;
 }
 
-/* Generated Tracks Panel */
-.tracks-panel {
-  background: #f5f5f5;
-  padding: 1.5rem;
-  border-radius: 8px;
-  margin-bottom: 2rem;
+/* Generated Tracks Box */
+.tracks-box {
+  margin-bottom: 0;
 }
 
-.tracks-panel h3 {
+.tracks-box h3 {
   margin-top: 0;
   margin-bottom: 1rem;
   color: #333;
@@ -283,6 +338,16 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.empty-tracks {
+  margin: 0;
+  color: #4b5563;
+  background: #ffffff;
+  border: 1px solid #dbe3ff;
+  border-radius: 6px;
+  padding: 0.8rem;
+  font-size: 0.92rem;
 }
 
 .track-item {
@@ -359,14 +424,40 @@
 
 @media (max-width: 800px) {
   .audio-synthesizer {
-    padding: 1rem;
+    padding: 0.45rem;
   }
 
-  .drawing-section,
-  .controls-section,
-  .tracks-panel,
-  .info-panel {
-    padding: 1rem;
+  .synthesizer-layout {
+    gap: 0.8rem;
+  }
+
+  .layout-box {
+    padding: 0.72rem;
+    border-radius: 10px;
+  }
+
+  .controls-box {
+    max-width: 100%;
+  }
+
+  .secondary-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .secondary-layout .layout-box {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .drawing-hints {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .canvas-size-note {
+    margin-top: 0.6rem;
+    font-size: 0.78rem;
   }
 
   .control-group input[type='range'] {
@@ -377,6 +468,11 @@
 
   .wave-mapper-row {
     grid-template-columns: 72px 1fr 20px;
+  }
+
+  .synthesize-button {
+    padding: 0.85rem;
+    font-size: 1rem;
   }
 }
 

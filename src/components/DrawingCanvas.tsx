@@ -232,6 +232,8 @@ export function DrawingCanvas({ width, height, onImageChange }: DrawingCanvasPro
     const canvas = surface.element;
     canvas.classList.add('drawing-canvas');
     canvas.style.touchAction = 'none';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
 
     const handlePointerDown = (event: PointerEvent) => {
       if (event.button !== 0 && event.pointerType !== 'touch') return;
@@ -322,6 +324,9 @@ export function DrawingCanvas({ width, height, onImageChange }: DrawingCanvasPro
     if (!surface) return;
 
     surface.resize(width, height);
+    // ART writes fixed inline px sizes on resize; force responsive sizing.
+    surface.element.style.width = '100%';
+    surface.element.style.height = '100%';
     renderStrokes();
     notifyParentOfChange();
   }, [height, notifyParentOfChange, renderStrokes, width]);
@@ -357,107 +362,117 @@ export function DrawingCanvas({ width, height, onImageChange }: DrawingCanvasPro
   };
 
   return (
-    <div className="drawing-canvas-container">
-      <div className="canvas-toolbar">
-        <div className="tool-group">
-          <label>Brush:</label>
-          <div className="brush-preset-grid">
-            {BRUSH_PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                className={brushPresetId === preset.id ? 'active' : ''}
-                onClick={() => setBrushPresetId(preset.id)}
-                title={preset.label}
-              >
-                <span aria-hidden="true">{preset.icon}</span> {preset.label}
-              </button>
-            ))}
+    <div className="drawing-canvas-layout">
+      <div className="drawing-box canvas-main-box">
+        <div className="canvas-wrapper">
+          <div ref={hostRef} className={`canvas-host ${isDrawing ? 'is-drawing' : ''}`} />
+          <div className="canvas-info">
+            Additive color mode: painting colors on top of each other sums light values.
           </div>
-        </div>
-
-        <div className="tool-group">
-          <label>
-            Size:
-            <input
-              type="range"
-              min="1"
-              max="40"
-              value={brushSize}
-              onChange={(e) => setBrushSize(Number(e.target.value))}
-            />
-            <span>{brushSize}px</span>
-          </label>
-        </div>
-
-        <div className="tool-group color-picker-group">
-          <label>Color Mixer</label>
-          <div className="swatch-preview" style={{ backgroundColor: `rgb(${brushColor.r}, ${brushColor.g}, ${brushColor.b})` }} />
-
-          <div className="palette-grid">
-            {PALETTE.map((hex) => (
-              <button
-                key={hex}
-                type="button"
-                className="palette-swatch"
-                style={{ backgroundColor: hex }}
-                onClick={() => setColorFromHex(hex)}
-                title={hex}
-                aria-label={`Pick color ${hex}`}
-              />
-            ))}
-          </div>
-
-          <label className="rgb-slider">
-            R
-            <input
-              type="range"
-              min="0"
-              max="255"
-              value={brushColor.r}
-              onChange={(e) => setBrushColor((prev) => ({ ...prev, r: Number(e.target.value) }))}
-            />
-            <span>{brushColor.r}</span>
-          </label>
-
-          <label className="rgb-slider">
-            G
-            <input
-              type="range"
-              min="0"
-              max="255"
-              value={brushColor.g}
-              onChange={(e) => setBrushColor((prev) => ({ ...prev, g: Number(e.target.value) }))}
-            />
-            <span>{brushColor.g}</span>
-          </label>
-
-          <label className="rgb-slider">
-            B
-            <input
-              type="range"
-              min="0"
-              max="255"
-              value={brushColor.b}
-              onChange={(e) => setBrushColor((prev) => ({ ...prev, b: Number(e.target.value) }))}
-            />
-            <span>{brushColor.b}</span>
-          </label>
-        </div>
-
-        <div className="tool-group">
-          <button onClick={handleUndo} disabled={!canUndo} title="Undo last action">
-            <span role="img" aria-label="Undo">↶</span> Undo
-          </button>
-          <button onClick={handleClear} title="Clear canvas">
-            <span role="img" aria-label="Clear">🗑️</span> Clear
-          </button>
         </div>
       </div>
 
-      <div className="canvas-wrapper">
-        <div ref={hostRef} className={`canvas-host ${isDrawing ? 'is-drawing' : ''}`} />
-        <div className="canvas-info">
-          Additive color mode: painting colors on top of each other sums light values.
+      <div className="drawing-box canvas-tools-box">
+        <div className="canvas-toolbar">
+          <div className="toolbar-box brush-settings-box">
+            <div className="brush-settings-grid">
+              <div className="tool-group brush-group">
+                <label>Brush:</label>
+                <div className="brush-preset-grid">
+                  {BRUSH_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      className={brushPresetId === preset.id ? 'active' : ''}
+                      onClick={() => setBrushPresetId(preset.id)}
+                      title={preset.label}
+                    >
+                      <span aria-hidden="true">{preset.icon}</span> {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="tool-group size-group">
+                <label className="size-label">
+                  Size:
+                  <input
+                    type="range"
+                    min="1"
+                    max="40"
+                    value={brushSize}
+                    onChange={(e) => setBrushSize(Number(e.target.value))}
+                  />
+                  <span>{brushSize}px</span>
+                </label>
+              </div>
+
+              <div className="tool-group color-picker-group mixer-group">
+                <label>Color Mixer</label>
+                <div className="swatch-preview" style={{ backgroundColor: `rgb(${brushColor.r}, ${brushColor.g}, ${brushColor.b})` }} />
+
+                <div className="palette-grid">
+                  {PALETTE.map((hex) => (
+                    <button
+                      key={hex}
+                      type="button"
+                      className="palette-swatch"
+                      style={{ backgroundColor: hex }}
+                      onClick={() => setColorFromHex(hex)}
+                      title={hex}
+                      aria-label={`Pick color ${hex}`}
+                    />
+                  ))}
+                </div>
+
+                <label className="rgb-slider">
+                  R
+                  <input
+                    type="range"
+                    min="0"
+                    max="255"
+                    value={brushColor.r}
+                    onChange={(e) => setBrushColor((prev) => ({ ...prev, r: Number(e.target.value) }))}
+                  />
+                  <span>{brushColor.r}</span>
+                </label>
+
+                <label className="rgb-slider">
+                  G
+                  <input
+                    type="range"
+                    min="0"
+                    max="255"
+                    value={brushColor.g}
+                    onChange={(e) => setBrushColor((prev) => ({ ...prev, g: Number(e.target.value) }))}
+                  />
+                  <span>{brushColor.g}</span>
+                </label>
+
+                <label className="rgb-slider">
+                  B
+                  <input
+                    type="range"
+                    min="0"
+                    max="255"
+                    value={brushColor.b}
+                    onChange={(e) => setBrushColor((prev) => ({ ...prev, b: Number(e.target.value) }))}
+                  />
+                  <span>{brushColor.b}</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="toolbar-box action-settings-box">
+            <div className="tool-group action-group">
+              <button onClick={handleUndo} disabled={!canUndo} title="Undo last action">
+                <span role="img" aria-label="Undo">↶</span> Undo
+              </button>
+              <button onClick={handleClear} title="Clear canvas">
+                <span role="img" aria-label="Clear">🗑️</span> Clear
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
