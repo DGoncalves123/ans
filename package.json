@@ -5,7 +5,10 @@
   "license": "MIT",
   "scripts": {
     "start": "nx serve",
+    "patch:art-color": "./scripts/patch-art-color.sh",
+    "prebuild": "npm run patch:art-color",
     "build": "nx build",
+    "prebuild:ghpages": "npm run patch:art-color",
     "build:ghpages": "VITE_BASE_PATH=/ans_html/ nx build",
     "test": "nx test",
     "wasm:setup": "./scripts/setup-emscripten.sh",
