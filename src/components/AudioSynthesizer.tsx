@@ -10,6 +10,9 @@ interface SynthConfig {
   dynamicCompression: boolean;
 }
 
+const SYNTH_TARGET_WIDTH = 1200;
+const SYNTH_TARGET_HEIGHT = 720;
+
 type WorkerState = 'initializing' | 'ready' | 'processing' | 'error';
 
 interface GeneratedTrack {
@@ -34,6 +37,9 @@ interface WaveChannelMap {
 
 const DRAWING_CANVAS_WIDTH = 1100;
 const DRAWING_CANVAS_HEIGHT = 720;
+
+const MIN_DURATION = 2;
+const MAX_DURATION = 120;
 
 const CHANNEL_OPTIONS: Array<{ value: WaveChannel; label: string; swatch: string }> = [
   { value: 'R', label: 'Red', swatch: '#ff3b30' },
@@ -113,10 +119,12 @@ function resizeImageDataX(source: ImageData, targetWidth: number, mode: XResizeM
 }
 
 export function AudioSynthesizer() {
+  const [duration, setDuration] = useState<number>(10);
+
   const [config, setConfig] = useState<SynthConfig>({
-    advanceRate: 12,
+    advanceRate: SYNTH_TARGET_WIDTH / 10,
     samplingRate: 44100,
-    volumeMultiplier: 0.5, // Increased from 0.05 to 0.5 (50%)
+    volumeMultiplier: 0.5,
     channels: 'RGBL',
     dynamicCompression: false,
   });
@@ -125,7 +133,6 @@ export function AudioSynthesizer() {
   const [workerState, setWorkerState] = useState<WorkerState>('initializing');
   const [status, setStatus] = useState<string>('🧵 Initializing worker thread...');
   const [generatedTracks, setGeneratedTracks] = useState<GeneratedTrack[]>([]);
-  const [targetTimeWidth, setTargetTimeWidth] = useState<number>(720);
   const [xResizeMode, setXResizeMode] = useState<XResizeMode>('average');
   const [waveChannelMap, setWaveChannelMap] = useState<WaveChannelMap>({
     sine: 'R',
@@ -144,10 +151,10 @@ export function AudioSynthesizer() {
     setConfig((prev) => ({ ...prev, channels: buildChannelString(waveChannelMap) }));
   }, [waveChannelMap]);
 
-  // Calculate estimated duration based on canvas width and playback speed
-  // Width represents time (horizontal left to right)
-  // Note: This is an estimate - actual duration may vary based on WASM processing
-  const estimatedDuration = targetTimeWidth / config.advanceRate;
+  // Recalculate advanceRate whenever duration changes
+  useEffect(() => {
+    setConfig((prev) => ({ ...prev, advanceRate: SYNTH_TARGET_WIDTH / duration }));
+  }, [duration]);
 
   // Initialize Web Worker for threaded synthesis
   useEffect(() => {
@@ -390,10 +397,10 @@ export function AudioSynthesizer() {
       // NOTE: Canvas is [width(time) x height(720 oscillators)]
       // But WASM expects [width(720 oscillators) x height(time)]
       // So we need to TRANSPOSE the image data
-      const resizedImageData = resizeImageDataX(imageData, targetTimeWidth, xResizeMode);
+      const resizedImageData = resizeImageDataX(imageData, SYNTH_TARGET_WIDTH, xResizeMode);
       const canvasW = resizedImageData.width;
       const canvasH = resizedImageData.height;
-      
+
       // Transposed dimensions for WASM
       const wasmWidth = canvasH;   // 720 oscillators
       const wasmHeight = canvasW;  // time points
@@ -443,7 +450,7 @@ export function AudioSynthesizer() {
           />
           <p className="canvas-size-note">
             Canvas always fits your screen. Actual drawing size: {DRAWING_CANVAS_WIDTH} x {canvasHeight}px.
-            Synthesis uses width {targetTimeWidth}px via {xResizeMode} conversion on the X axis.
+            Synthesis converts to {SYNTH_TARGET_WIDTH}x{SYNTH_TARGET_HEIGHT}px ({xResizeMode}). Duration: {duration}s.
           </p>
           <div className="drawing-hints">
             <h3><span role="img" aria-label="Light bulb">💡</span> Tips:</h3>
@@ -463,31 +470,17 @@ export function AudioSynthesizer() {
 
           <div className="control-group">
             <label>
-              <strong>Playback Speed (columns/sec):</strong>
-              <input
-                type="number"
-                min="1"
-                max="120"
-                value={config.advanceRate}
-                onChange={(e) => setConfig({ ...config, advanceRate: Number(e.target.value) })}
-              />
-            </label>
-            <small>Estimated duration: ~{estimatedDuration.toFixed(2)}s</small>
-          </div>
-
-          <div className="control-group">
-            <label>
-              <strong>Synthesis Width (time axis):</strong>
+              <strong>Duration (seconds):</strong>
               <input
                 type="range"
-                min="70"
-                max="2000"
+                min={MIN_DURATION}
+                max={MAX_DURATION}
                 step="1"
-                value={targetTimeWidth}
-                onChange={(e) => setTargetTimeWidth(Number(e.target.value))}
+                value={duration}
+                onChange={(e) => setDuration(Number(e.target.value))}
               />
             </label>
-            <small>{targetTimeWidth}px (range: 70 to 2000)</small>
+            <small>{duration}s &mdash; columns/sec: {(SYNTH_TARGET_WIDTH / duration).toFixed(1)}</small>
           </div>
 
           <div className="control-group">
@@ -618,13 +611,13 @@ export function AudioSynthesizer() {
               workerState === 'initializing' ? 'Worker thread initializing...' :
               workerState === 'error' ? 'Worker error occurred' :
               !imageData ? 'Draw something on the canvas first!' : 
-              `Generate ~${estimatedDuration.toFixed(1)}s audio in background thread`
+              `Generate ${duration}s audio in background thread`
             }
           >
             {workerState === 'initializing' ? 'Initializing worker...' : 
              workerState === 'error' ? 'Worker error' : 
              !imageData ? 'Draw on canvas to enable' :
-             `Generate Audio (~${estimatedDuration.toFixed(1)}s)`}
+             `Generate Audio (${duration}s)`}
           </button>
 
           {status && (

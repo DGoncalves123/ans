@@ -184,10 +184,20 @@ export function DrawingCanvas({ width, height, onImageChange }: DrawingCanvasPro
     const canvas = surfaceRef.current?.element;
     if (!canvas || !onImageChange) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const logicalW = widthRef.current;
+    const logicalH = heightRef.current;
 
-    const imageData = ctx.getImageData(0, 0, widthRef.current, heightRef.current);
+    // The Art library renders at devicePixelRatio scale, so the canvas bitmap
+    // is larger than the logical dimensions. Use drawImage to downscale the
+    // full hi-DPI bitmap to the expected logical size before extracting pixels.
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = logicalW;
+    tempCanvas.height = logicalH;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) return;
+
+    tempCtx.drawImage(canvas, 0, 0, logicalW, logicalH);
+    const imageData = tempCtx.getImageData(0, 0, logicalW, logicalH);
     onImageChange(imageData);
   }, [onImageChange]);
 
